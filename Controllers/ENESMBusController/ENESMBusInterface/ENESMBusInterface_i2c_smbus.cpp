@@ -9,7 +9,21 @@
 |   SPDX-License-Identifier: GPL-2.0-or-later               |
 \*---------------------------------------------------------*/
 
+#include <mutex>
 #include "ENESMBusInterface_i2c_smbus.h"
+
+/*---------------------------------------------------------*\
+| ENE registers are reached in two SMBus transfers: set the |
+| register pointer (command 0x00), then read or write at it |
+| (0x81/0x01/0x03). The bus only locks single transfers, so |
+| two threads talking to the same device could interleave   |
+| and land one thread's data at the other's pointer (seen:  |
+| effect colors written into 0x8020-0x8025, turning the     |
+| LEDs off). Hold this lock across each pointer+data pair.  |
+|                                                           |
+|   SekaiOS (Oct 2026): added                               |
+\*---------------------------------------------------------*/
+static std::mutex ene_register_mutex;
 
 ENESMBusInterface_i2c_smbus::ENESMBusInterface_i2c_smbus(i2c_smbus_interface* bus)
 {
@@ -39,6 +53,8 @@ int ENESMBusInterface_i2c_smbus::GetMaxBlock()
 
 unsigned char ENESMBusInterface_i2c_smbus::ENERegisterRead(ene_dev_id dev, ene_register reg)
 {
+    std::lock_guard<std::mutex> lock(ene_register_mutex);
+
     //Write ENE register
     bus->i2c_smbus_write_word_data(dev, 0x00, ((reg << 8) & 0xFF00) | ((reg >> 8) & 0x00FF));
 
@@ -48,6 +64,8 @@ unsigned char ENESMBusInterface_i2c_smbus::ENERegisterRead(ene_dev_id dev, ene_r
 
 void ENESMBusInterface_i2c_smbus::ENERegisterWrite(ene_dev_id dev, ene_register reg, unsigned char val)
 {
+    std::lock_guard<std::mutex> lock(ene_register_mutex);
+
     //Write ENE register
     bus->i2c_smbus_write_word_data(dev, 0x00, ((reg << 8) & 0xFF00) | ((reg >> 8) & 0x00FF));
 
@@ -57,6 +75,8 @@ void ENESMBusInterface_i2c_smbus::ENERegisterWrite(ene_dev_id dev, ene_register 
 
 void ENESMBusInterface_i2c_smbus::ENERegisterWriteBlock(ene_dev_id dev, ene_register reg, unsigned char * data, unsigned char sz)
 {
+    std::lock_guard<std::mutex> lock(ene_register_mutex);
+
     //Write ENE register
     bus->i2c_smbus_write_word_data(dev, 0x00, ((reg << 8) & 0xFF00) | ((reg >> 8) & 0x00FF));
 

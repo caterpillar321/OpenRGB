@@ -1357,10 +1357,15 @@ void ApplyOptions(DeviceOptions& options, std::vector<RGBController *>& rgb_cont
 
     /*-----------------------------------------------------*\
     | Set device per-LED colors if necessary                |
+    |                                                       |
+    | Queue it on the device thread like SetActiveMode does |
+    | (UpdateMode) instead of calling DeviceUpdateLEDs from |
+    | this thread: both ran at once and the two writes      |
+    | interleaved on the device (SekaiOS, Oct 2026).        |
     \*-----------------------------------------------------*/
     if(device->GetModeColorMode(mode) == MODE_COLORS_PER_LED)
     {
-        device->DeviceUpdateLEDs();
+        device->UpdateLEDs();
     }
 }
 
